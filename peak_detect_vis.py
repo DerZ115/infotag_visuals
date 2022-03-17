@@ -7,11 +7,11 @@ from lib.opus_converter import convert_opus
 from lib.preprocessing import BaselineCorrector
 
 # Starting values for the slider
-sg_window_init = 20
+sg_window_init = 15
 threshold_init = 0.5
 
 
-def find_peaks(signal, wns, sg_window, threshold):
+def find_peaks(signal, sg_window, threshold):
     """Finds peaks in the signal, and returns the corresponding wavenumbers and
     the Savitzky-Golay smoothed signal."""
     signal_sg = savgol_filter(
@@ -33,13 +33,11 @@ def find_peaks(signal, wns, sg_window, threshold):
     if len(peak_condensing) > 0:
         peaks_condensed.append(int(np.mean(peak_condensing)))
 
-    peaks_wns = wns[peaks_condensed]
-
-    return peaks_wns, signal_sg
+    return peaks_condensed, signal_sg
 
 
 # Import data (OPUS binary file)
-data = convert_opus("data/AgNP.0")
+data = convert_opus("data/AuNP.0")
 wns = data[:, 0]
 signal = data[:, 1]
 
@@ -54,17 +52,17 @@ fig, (ax1, ax2) = plt.subplots(2, figsize=(16, 9),
 
 # First plot: Spectrum with peaks
 
-ax1.axhline(0, linestyle="--", linewidth=1, color="black")
-ax1.plot(wns, signal_bl)
+ax1.axhline(0, linestyle="--", linewidth=1, color="black", zorder=1)
+ax1.plot(wns, signal_bl, zorder=2)
 
-y_min = 0
-y_max = np.max(signal_bl)*1.1
+y_min, y_max = ax1.get_ylim()
+ax1.autoscale(enable=False)
 
 # Detect peaks in the spectrum
-peaks, signal_sg = find_peaks(signal, wns, sg_window_init, threshold_init)
+peaks, signal_sg = find_peaks(signal, sg_window_init, threshold_init)
 
 # Mark peaks with a red line
-lines = ax1.vlines(peaks, y_min, y_max, colors="red", linewidth=1)
+peakmarks = ax1.scatter(wns[peaks], signal_bl[peaks], c="red", marker="x", s=50, zorder=3)
 
 ax1.set_xlim(wns[0], wns[-1])
 ax1.grid()
@@ -99,9 +97,9 @@ sl_threshold = Slider(sl2, "Threshold", 0, 10, valinit=threshold_init)
 def update(val):
     """Function to update the plots when a slider is moved"""
     new_peaks, new_sg = find_peaks(
-        signal, wns, sl_window.val, sl_threshold.val)
-    segments = [np.array([[peak, y_min], [peak, y_max]]) for peak in new_peaks]
-    lines.set_segments(segments)
+        signal, sl_window.val, sl_threshold.val)
+    marks = np.array([[wns[peak], signal_bl[peak]] for peak in new_peaks])
+    peakmarks.set_offsets(marks)
     sg_plot.set_ydata(new_sg)
     threshold_line.set_ydata([-sl_threshold.val, -sl_threshold.val])
     fig.canvas.draw_idle()
